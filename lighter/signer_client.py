@@ -20,6 +20,21 @@ class ApiKeyResponse(ctypes.Structure):
     _fields_ = [("privateKey", ctypes.c_char_p), ("publicKey", ctypes.c_char_p), ("err", ctypes.c_char_p)]
 
 
+class CreateOrderTxReq(ctypes.Structure):
+    _fields_ = [
+        ("MarketIndex", ctypes.c_uint8),
+        ("ClientOrderIndex", ctypes.c_int64),
+        ("BaseAmount", ctypes.c_int64),
+        ("Price", ctypes.c_uint32),
+        ("IsAsk", ctypes.c_uint8),
+        ("Type", ctypes.c_uint8),
+        ("TimeInForce", ctypes.c_uint8),
+        ("ReduceOnly", ctypes.c_uint8),
+        ("TriggerPrice", ctypes.c_uint32),
+        ("OrderExpiry", ctypes.c_int64),
+    ]
+
+
 class StrOrErr(ctypes.Structure):
     _fields_ = [("str", ctypes.c_char_p), ("err", ctypes.c_char_p)]
 
@@ -222,6 +237,43 @@ class SignerClient:
             reduce_only,
             trigger_price,
             order_expiry,
+            nonce,
+        )
+
+        tx_info = result.str.decode("utf-8") if result.str else None
+        error = result.err.decode("utf-8") if result.err else None
+
+        return tx_info, error
+    
+    def sign_create_grouped_orders(
+        self,
+        grouping_type,
+        orders_raw,
+        nonce=-1,
+    ):
+        self.signer.SignCreateGroupedOrders.argtypes = [
+            ctypes.c_uint8,
+            ctypes.POINTER(CreateOrderTxReq),
+            ctypes.c_int,
+        ]
+        self.signer.SignCreateGroupedOrders.restype = StrOrErr
+
+
+        required_fields = {name for name, _ in CreateOrderTxReq._fields_}   
+        filtered_data = [
+            {k: v for k, v in d.items() if k in required_fields}
+            for d in orders_raw
+        ]
+        filtered_data[2]['OrderExpiry'] = filtered_data[1]['OrderExpiry']
+        #print(filtered_data)
+
+        CreateOrderArray = CreateOrderTxReq * len(filtered_data)
+        orders = CreateOrderArray(*(CreateOrderTxReq(**d) for d in filtered_data))
+
+        result = self.signer.SignCreateGroupedOrders(
+            grouping_type,
+            orders,
+            len(orders),
             nonce,
         )
 
