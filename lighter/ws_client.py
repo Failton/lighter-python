@@ -51,6 +51,8 @@ class WsClient:
             self.handle_subscribed_account(message)
         elif message_type == "update/account_all":
             self.handle_update_account(message)
+        elif message_type == "ping":
+            self.handle_ping(ws)
         else:
             self.handle_unhandled_message(message)
 
@@ -60,8 +62,16 @@ class WsClient:
 
         if message_type == "connected":
             await self.handle_connected_async(ws)
+        elif message_type == "ping":
+            await self.handle_ping_async(ws)
         else:
             self.on_message(ws, message)
+
+    def handle_ping(self, ws):
+        ws.send(json.dumps({"type": "pong"}))
+
+    async def handle_ping_async(self, ws):
+        await ws.send(json.dumps({"type": "pong"}))
 
     def handle_connected(self, ws):
         for market_id in self.subscriptions["order_books"]:
